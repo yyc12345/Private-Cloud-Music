@@ -22,6 +22,13 @@ function setCookie(cookieName, cookieValue, maxAge = 0) {
     if (maxAge > 0) cookieStr += ";max-age=" + maxAge;
     document.cookie = cookieStr;
 }
+function volumeClamp(volume_str) {
+    var vol = parseFloat(volume_str);
+    if (isNaN(vol)) return 1.0;
+    if (vol < 0.0) return 0.0;
+    if (vol > 1.0) return 1.0;
+    return vol;
+}
 
 (function() {
     var Helper = function() {
@@ -78,6 +85,7 @@ function setCookie(cookieName, cookieValue, maxAge = 0) {
         currentIndex: -1,
         loop: 0,
         order: 0,
+        volume: 0.0,
         playlist: H("playlist").el,
         folderlist: H("folderlist").el,
         nowPlaying: H("nowPlaying").el,
@@ -256,6 +264,11 @@ function setCookie(cookieName, cookieValue, maxAge = 0) {
                 H("btn-order").innerHTML("Order: ×");
             }
         },
+
+        applyVolume : function() {
+            this.audio.volume = this.volume;
+            H("volumebar").css("width", this.volume*100+"%");
+        },
  
         init : function() {
             var that = this;
@@ -265,8 +278,10 @@ function setCookie(cookieName, cookieValue, maxAge = 0) {
             });
             this.loop = getCookie("pcm-loop") == "1" ? 1 : 0;
             this.order = getCookie("pcm-order") == "1" ? 1 : 0;
+            this.volume = volumeClamp(getCookie("pcm-volume"));
             this.applyLoop();
             this.applyOrder();
+            this.applyVolume();
         },
  
         ready : function() {
@@ -289,6 +304,12 @@ function setCookie(cookieName, cookieValue, maxAge = 0) {
             this.audio.onplay = function() {
                 H("btn-play").innerHTML("Pause");
                 that.updateMetadata();
+            }
+
+            this.audio.onvolumechange = function() {
+                // yyc mark: couldn't write that.volume. we must write that.audio.volume
+                // due to in index-fast.html, writing that.volume will cause a problem.
+                setCookie("pcm-volume", that.audio.volume, 157680000);
             }
 
             H("progressbar").click(function(e) {
@@ -346,6 +367,16 @@ function setCookie(cookieName, cookieValue, maxAge = 0) {
                 that.order = 1 - that.order;
                 that.applyOrder();
                 setCookie("pcm-order", that.order, 157680000);
+            });
+
+            H("btn-volume").click(function(e) {
+                var sr=this.getBoundingClientRect();
+                var p=(e.clientX-sr.left)/sr.width;
+                that.volume = p;
+                that.applyVolume();
+                // yyc mark: don't need to call setCookie here.
+                // setCookie will be called when the volume of audio element changed
+                // to make sure volume change function works on index-fast.html
             });
             
             if ('mediaSession' in navigator) {
